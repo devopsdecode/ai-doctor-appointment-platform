@@ -102,6 +102,13 @@ describe('Azure Microservice & Telemetry API Test Suite', () => {
     assert.ok(text.includes('Azure Infrastructure & CI/CD'));
   });
 
+  test('GET / does not emit COOP/OAC headers that require a trustworthy HTTPS origin', async () => {
+    const res = await fetch(`${baseUrl}/`);
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.headers.get('cross-origin-opener-policy'), null);
+    assert.strictEqual(res.headers.get('origin-agent-cluster'), null);
+  });
+
   test('GET /api/doctors returns doctor directory', async () => {
     const res = await fetch(`${baseUrl}/api/doctors`);
     assert.strictEqual(res.status, 200);

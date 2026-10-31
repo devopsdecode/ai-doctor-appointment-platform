@@ -9,6 +9,8 @@ const app = express();
 // Security Headers with relaxed CSP for inline scripts/styles in dashboard
 app.use(
   helmet({
+    crossOriginOpenerPolicy: false,
+    originAgentCluster: false,
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],

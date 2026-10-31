@@ -6,7 +6,7 @@ metadata:
   labels:
     app: sample-nodejs-app
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   ports:
     - name: http
       port: 80
