@@ -55,19 +55,19 @@ variable "kubernetes_version" {
 variable "enable_auto_scaling" {
   type        = bool
   description = "Enable cluster autoscaler for the default node pool"
-  default     = true
+  default     = false
 }
 
 variable "min_count" {
   type        = number
   description = "Minimum number of nodes when autoscaling is enabled"
-  default     = 1
+  default     = null
 }
 
 variable "max_count" {
   type        = number
   description = "Maximum number of nodes when autoscaling is enabled"
-  default     = 3
+  default     = null
 }
 
 variable "tags" {

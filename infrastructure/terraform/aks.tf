@@ -15,8 +15,8 @@ resource "azurerm_kubernetes_cluster" "aks" {
     os_disk_size_gb     = var.os_disk_size_gb
     enable_auto_scaling = var.enable_auto_scaling
     node_count          = var.node_count
-    min_count           = var.min_count
-    max_count           = var.max_count
+    min_count           = var.enable_auto_scaling ? var.min_count : null
+    max_count           = var.enable_auto_scaling ? var.max_count : null
     type                = "VirtualMachineScaleSets"
   }
 

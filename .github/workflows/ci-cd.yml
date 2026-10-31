@@ -11,9 +11,13 @@ on:
 
 env:
   AZURE_SUBSCRIPTION_ID: "cd459aae-8e9d-4069-8ab8-fd60d11b3e04"
+  AZURE_LOCATION: "eastus"
   IMAGE_NAME: "sample-nodejs-app"
   DEPLOYMENT_NAME: "nodejs-deployment"
   NAMESPACE: "demo-app"
+  TF_STATE_RESOURCE_GROUP: "rg-terraform-state"
+  TF_STATE_CONTAINER: "tfstate"
+  TF_STATE_KEY: "ai-doctor-platform/terraform.tfstate"
 
 jobs:
   # ============================================================================
@@ -50,11 +54,73 @@ jobs:
           fi
           terraform -version
 
+      - name: Configure Terraform Remote State
+        working-directory: infrastructure/terraform
+        run: |
+          TF_STATE_STORAGE_ACCOUNT="tfstate$(printf '%s' "$AZURE_SUBSCRIPTION_ID" | md5sum | cut -c1-12)"
+          echo "TF_STATE_STORAGE_ACCOUNT=$TF_STATE_STORAGE_ACCOUNT" >> "$GITHUB_ENV"
+
+          az group create \
+            --name "$TF_STATE_RESOURCE_GROUP" \
+            --location "$AZURE_LOCATION" \
+            --tags Project=AI-Doctor-Appointment-Platform Environment=production ManagedBy=Terraform
+
+          az storage account create \
+            --name "$TF_STATE_STORAGE_ACCOUNT" \
+            --resource-group "$TF_STATE_RESOURCE_GROUP" \
+            --location "$AZURE_LOCATION" \
+            --sku Standard_LRS \
+            --allow-blob-public-access false
+
+          STORAGE_KEY=$(az storage account keys list \
+            --resource-group "$TF_STATE_RESOURCE_GROUP" \
+            --account-name "$TF_STATE_STORAGE_ACCOUNT" \
+            --query '[0].value' -o tsv)
+
+          az storage container create \
+            --name "$TF_STATE_CONTAINER" \
+            --account-name "$TF_STATE_STORAGE_ACCOUNT" \
+            --account-key "$STORAGE_KEY" \
+            --auth-mode key
+
+      - name: Import Existing Azure Resources
+        working-directory: infrastructure/terraform
+        run: |
+          set +e
+          terraform init \
+            -reconfigure \
+            -backend-config="resource_group_name=$TF_STATE_RESOURCE_GROUP" \
+            -backend-config="storage_account_name=$TF_STATE_STORAGE_ACCOUNT" \
+            -backend-config="container_name=$TF_STATE_CONTAINER" \
+            -backend-config="key=$TF_STATE_KEY"
+
+          RESOURCE_GROUP_NAME="rg-aks-doctor-platform"
+          CLUSTER_NAME="aks-cluster-prod"
+
+          if [ "$(az group exists --name "$RESOURCE_GROUP_NAME")" = "true" ]; then
+            terraform import azurerm_resource_group.rg "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP_NAME" || true
+          fi
+
+          ACR_NAME=$(az acr list --resource-group "$RESOURCE_GROUP_NAME" --query "[0].name" -o tsv)
+          if [ -n "$ACR_NAME" ]; then
+            terraform import azurerm_container_registry.acr "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP_NAME/providers/Microsoft.ContainerRegistry/registries/$ACR_NAME" || true
+          fi
+
+          if az aks show --resource-group "$RESOURCE_GROUP_NAME" --name "$CLUSTER_NAME" >/dev/null 2>&1; then
+            terraform import azurerm_kubernetes_cluster.aks "/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RESOURCE_GROUP_NAME/providers/Microsoft.ContainerService/managedClusters/$CLUSTER_NAME" || true
+          fi
+
       - name: Terraform Init & Apply
         working-directory: infrastructure/terraform
         run: |
-          echo "Initializing Terraform..."
-          terraform init
+          echo "Initializing Terraform with remote state..."
+          terraform init \
+            -reconfigure \
+            -backend-config="resource_group_name=$TF_STATE_RESOURCE_GROUP" \
+            -backend-config="storage_account_name=$TF_STATE_STORAGE_ACCOUNT" \
+            -backend-config="container_name=$TF_STATE_CONTAINER" \
+            -backend-config="key=$TF_STATE_KEY"
+
           echo "Applying Terraform configuration to provision ACR & AKS..."
           terraform apply -auto-approve
 
