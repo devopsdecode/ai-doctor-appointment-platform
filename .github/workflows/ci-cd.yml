@@ -43,6 +43,8 @@ jobs:
       - name: Run Unit & Integration Tests
         run: |
           echo "Running application test suite inside containerized Node environment..."
+          # Clean up container-generated node_modules on exit so host workspace permissions remain clean
+          trap 'docker run --rm -v "$PWD":/usr/src/app alpine rm -rf /usr/src/app/node_modules' EXIT
           docker run --rm \
             -v "$PWD":/usr/src/app \
             -w /usr/src/app \
