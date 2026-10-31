@@ -10,15 +10,8 @@ yarn-error.log*
 .gitignore
 .github/
 
-# Terraform infrastructure code
-infrastructure/
-.terraform/
-*.tfstate*
-*.tfplan
-
 # Documentation and scratch files
 README.md
-scripts/
 tests/
 coverage/
 

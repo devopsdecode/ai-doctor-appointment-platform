@@ -6,6 +6,7 @@ dist/
 coverage/
 *.log
 .DS_Store
+
 # Terraform
 **/.terraform/
 .terraform/
@@ -20,4 +21,3 @@ override.tf.json
 *_override.tf.json
 .terraformrc
 terraform.rc
-

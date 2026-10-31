@@ -1,133 +1,121 @@
-# Azure Infrastructure & Cloud-Native App: GitHub Self-Hosted Runner VM Using Terraform
+# AI Doctor Appointment Platform (Kubernetes & CI/CD)
 
-This repository provides an automated, secure, and production-ready end-to-end solution:
-1. **Azure Infrastructure**: Terraform configuration provisioning a dedicated Ubuntu Linux Virtual Machine in Azure as a GitHub Actions Self-Hosted Runner within a private Virtual Network, using an Azure NAT Gateway for egress and Managed Identity for ACR & AKS connectivity.
-2. **Cloud-Native Web Application**: A production Node.js microservice with health checks (`/healthz`, `/readyz`), system metrics (`/metrics`), live telemetry (`/api/telemetry`), and an interactive dark-mode glassmorphic observability dashboard.
-3. **CI/CD Pipeline**: GitHub Actions workflow (`.github/workflows/ci-cd.yml`) executing on this self-hosted runner to test, containerize, scan, publish to Azure Container Registry (ACR), and deploy to private Azure Kubernetes Service (AKS).
-4. **Kubernetes Manifests**: Ready-to-deploy Kubernetes manifests in `k8s/` (Namespace, ConfigMap, Deployment with probes & security context, Service, and HPA).
+An AI-powered Doctor Appointment & Telemedicine Platform built with Node.js, Docker, Kubernetes, and automated GitHub Actions CI/CD.
 
 ---
 
-## Repository Contents
+## 🌟 Key Features
+
+1. **🩺 Doctor Discovery & Booking**:
+   - Browse verified medical specialists across Cardiology, Neurology, Dermatology, Pediatrics, Orthopedics, and General Medicine.
+   - Interactive appointment scheduling with live time-slot selection (`09:30 AM`, `11:00 AM`, etc.).
+   - Support for both **HD Video Telehealth** and **In-Person Clinic Visits**.
+
+2. **🤖 AI Symptom Checker & Clinical Triage**:
+   - Natural language symptom input with quick symptom tags.
+   - Evaluates urgency levels (Routine / Moderate / Urgent Attention), suspected conditions, and pre-consultation questions.
+   - 1-click matching to relevant medical specialists.
+
+3. **📅 Patient Appointments Management**:
+   - View scheduled appointments, cancel visits, and export calendar events (`.ics` download).
+   - One-click launch into the virtual telehealth consultation room.
+
+4. **📹 Virtual Telehealth Room**:
+   - Simulated encrypted HD video call with vital telemetry (ECG / heart rate monitor, audio waveform).
+   - Real-time AI clinical scribe transcription and notes generator.
+
+5. **☸️ Kubernetes-Native Deployment**:
+   - Production manifests in `k8s/` including Namespace, ConfigMap, Deployment with liveness/readiness probes, Service, and Horizontal Pod Autoscaler (HPA).
+   - Automated CI/CD pipeline (`.github/workflows/ci-cd.yml`) executing tests, building multi-stage Docker images, scanning with Trivy, and deploying to Kubernetes.
+
+---
+
+## 📁 Repository Structure
 
 ```
 ├── .github/
 │   └── workflows/
-│       └── ci-cd.yml                # CI/CD pipeline targeting self-hosted runner
-├── infrastructure/
-│   └── terraform/                   # Complete Terraform project for Azure VM & Network
-│       ├── providers.tf             # Terraform & AzureRM provider configuration
-│       ├── main.tf                  # Resource Group, locals, and Log Analytics
-│       ├── variables.tf             # All configurable parameters
-│       ├── outputs.tf               # Infrastructure output values
-│       ├── network.tf               # VNet, Subnet, NAT Gateway, Bastion, VNet Peering, Private DNS
-│       ├── nsg.tf                   # NSG inbound/outbound rules & subnet association
-│       ├── runner-vm.tf             # NIC, Linux VM, OS Disk, Cloud-Init template
-│       ├── identity.tf              # Managed Identity RBAC assignments (ACR, AKS, Key Vault)
-│       ├── cloud-init.yaml          # Bootstrapping (Docker, CLI tools, systemd runner service)
-│       ├── terraform.tfvars.example # Production example variables
-│       └── README.md                # Infrastructure documentation
-├── src/                             # Node.js Application Source Code
-│   ├── app.js                       # Express application setup & security middleware
-│   ├── server.js                    # Server lifecycle & graceful shutdown
+│       └── ci-cd.yml          # GitHub Actions CI/CD deployment pipeline
+├── k8s/                       # Kubernetes Production Manifests
+│   ├── namespace.yaml         # Application namespace (demo-app)
+│   ├── configmap.yaml         # Application environment configuration
+│   ├── deployment.yaml        # Deployment (2 replicas, non-root user, probes, limits)
+│   ├── service.yaml           # Kubernetes Service routing
+│   └── hpa.yaml               # HorizontalPodAutoscaler (CPU & memory scaling)
+├── src/                       # Node.js Application Source Code
+│   ├── app.js                 # Express app setup, Helmet security, routes
+│   ├── server.js              # Server lifecycle & graceful shutdown
 │   └── routes/
-│       └── api.js                   # Endpoints: /healthz, /readyz, /metrics, /api/info, /api/telemetry
-├── public/                          # Observability Web Dashboard
-│   ├── index.html                   # Semantic HTML5 dashboard interface
-│   ├── css/style.css                # Glassmorphic dark-mode design system (Vanilla CSS)
-│   └── js/app.js                    # Real-time metrics polling & interactive API console
-├── tests/                           # Test Suite
-│   └── app.test.js                  # Integration tests for all endpoints
-├── k8s/                             # Kubernetes Manifests for Private AKS
-│   ├── namespace.yaml               # Application namespace (demo-app)
-│   ├── configmap.yaml               # Application configuration
-│   ├── deployment.yaml              # Pod deployment with readiness/liveness probes & security context
-│   ├── service.yaml                 # ClusterIP Service routing
-│   └── hpa.yaml                     # HorizontalPodAutoscaler (CPU & Memory)
-├── scripts/
-│   └── register-runner.sh           # Safe registration helper using short-lived tokens
-├── Dockerfile                       # Multi-stage production container build
-├── .dockerignore                    # Docker build exclusion rules
-└── package.json                     # Node.js dependencies & test scripts
+│       └── api.js             # APIs: Doctors, Appointments, AI Triage, /healthz, /metrics
+├── public/                    # Frontend Web Application
+│   ├── index.html             # Semantic HTML5 single-page application
+│   ├── css/style.css          # Glassmorphic dark-mode design system
+│   ├── js/app.js              # Client application logic & API integration
+│   └── images/                # Medical specialist avatars
+├── tests/                     # Test Suite
+│   └── app.test.js            # Integration tests (11 tests covering all APIs)
+├── Dockerfile                 # Multi-stage production container build
+├── .dockerignore              # Docker build exclusions
+├── .gitignore                 # Git ignore rules
+└── package.json               # Dependencies & scripts
 ```
 
 ---
 
-## 1. Running & Testing the Application Locally
+## 🚀 Local Development
 
-### Prerequisites
-- Node.js 18+ (tested on Node.js 20 & 26)
-- npm 9+
-
-### Install Dependencies
+### 1. Install & Test
 ```bash
+# Install dependencies
 npm install
-```
 
-### Run Tests
-The test suite validates health probes, system metrics, cluster metadata, and static file serving:
-```bash
+# Run automated tests
 npm test
-```
 
-### Start the Application
-```bash
+# Start local development server
 npm start
 ```
-Open **[http://localhost:3000](http://localhost:3000)** in your browser to view the interactive cloud-native telemetry dashboard.
+Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 
----
-
-## 2. Containerization (Docker)
-
-Build the production multi-stage Docker image:
+### 2. Run with Docker
 ```bash
-docker build -t sample-nodejs-app:latest .
-```
+# Build production container image
+docker build -t ai-doctor-appointment-platform .
 
-Run the container:
-```bash
-docker run -p 3000:3000 --rm sample-nodejs-app:latest
+# Run container locally
+docker run -d -p 3000:3000 --name ai-doctor-app ai-doctor-appointment-platform
 ```
 
 ---
 
-## 3. Terraform Infrastructure Deployment
+## ☸️ Deploying to Kubernetes
 
-To deploy the private GitHub Self-Hosted Runner VM in Azure:
+Deploy all manifests to your Kubernetes cluster:
 
 ```bash
-cd infrastructure/terraform
+# 1. Create namespace
+kubectl apply -f k8s/namespace.yaml
 
-# 1. Initialize Terraform
-terraform init
+# 2. Apply configmap
+kubectl apply -f k8s/configmap.yaml
 
-# 2. Validate configuration
-terraform validate
+# 3. Deploy application pods
+kubectl apply -f k8s/deployment.yaml
 
-# 3. Create execution plan
-terraform plan -out=tfplan
+# 4. Expose service and autoscaling
+kubectl apply -f k8s/service.yaml
+kubectl apply -f k8s/hpa.yaml
 
-# 4. Review and apply (manual review required)
-terraform apply tfplan
+# 5. Verify rollout status
+kubectl rollout status deployment/nodejs-deployment -n demo-app
+kubectl get pods,svc -n demo-app
 ```
-
-Refer to [`infrastructure/terraform/README.md`](file:///Users/rajnadar/Desktop/june-project-end-to-end/infrastructure/terraform/README.md) for full architecture details, Bastion instructions, and registration steps.
 
 ---
 
-## 4. End-to-End CI/CD Pipeline Flow
+## 🔄 Automated CI/CD Pipeline
 
-When code is pushed to `main`, GitHub Actions triggers `.github/workflows/ci-cd.yml` on the self-hosted runner:
-
-1. **Continuous Integration (CI)**:
-   - Runner VM executes unit & integration tests (`npm test`).
-   - Authenticates to Azure Container Registry via VM Managed Identity (`az login --identity && az acr login`).
-   - Builds container image tagged with commit SHA and `latest`.
-   - Scans image for vulnerabilities using Trivy.
-   - Pushes image to private ACR.
-2. **Continuous Deployment (CD)**:
-   - Connects to private AKS cluster over peered VNet.
-   - Tests TCP 443 connectivity to private Kubernetes API (`kubectl cluster-info`).
-   - Applies Kubernetes manifests (`k8s/`).
-   - Verifies deployment rollout status (`kubectl rollout status deployment/nodejs-deployment`).
+When commits are pushed to `main`, GitHub Actions (`.github/workflows/ci-cd.yml`):
+1. **CI**: Checks out code, runs automated tests (`npm test`), builds Docker container, and scans for vulnerabilities.
+2. **Push**: Publishes the image to your container registry.
+3. **CD**: Connects to your Kubernetes cluster, updates the image tag, applies `k8s/` manifests, and verifies the rollout.
