@@ -53,7 +53,7 @@ jobs:
       - name: Authenticate to Azure using VM Managed Identity
         run: |
           echo "Authenticating via System-Assigned Managed Identity..."
-          az login --identity
+          az login --identity --allow-no-subscriptions
           echo "Authentication successful!"
 
       - name: Log in to Azure Container Registry (ACR)
@@ -109,7 +109,7 @@ jobs:
 
       - name: Authenticate to Azure using VM Managed Identity
         run: |
-          az login --identity
+          az login --identity --allow-no-subscriptions
 
       - name: Get Private AKS Cluster Credentials
         run: |
