@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Azure Cloud-Native Pipeline Dashboard | AKS & Self-Hosted Runner</title>
+  <meta name="description" content="Production-grade monitoring and telemetry dashboard for Node.js microservice deployed to Azure Kubernetes Service via Terraform-provisioned GitHub Self-Hosted Runner.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Ambient background glow effects -->
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+  <div class="ambient-glow glow-3"></div>
+
+  <div class="page-container">
+    <!-- Top Navigation Header -->
+    <header class="top-header">
+      <div class="brand-section">
+        <div class="brand-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="url(#accentGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M2 17L12 22L22 17" stroke="url(#accentGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M2 12L12 17L22 12" stroke="url(#accentGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <defs>
+              <linearGradient id="accentGrad" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#38BDF8"/>
+                <stop offset="0.5" stop-color="#818CF8"/>
+                <stop offset="1" stop-color="#C084FC"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div>
+          <div class="brand-subtitle">Azure Infrastructure & CI/CD</div>
+          <h1 class="brand-title">Cloud-Native Telemetry Dashboard</h1>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <div class="status-chip" id="cluster-status-chip">
+          <span class="pulse-indicator"></span>
+          <span class="status-text" id="header-status-text">AKS Cluster: Connected</span>
+        </div>
+        <button id="btn-refresh" class="btn btn-secondary" title="Refresh Telemetry">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+          <span>Refresh</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="main-layout">
+      <!-- High-Level Metrics Cards -->
+      <section class="metrics-grid" aria-label="Key System Metrics">
+        <article class="glass-card metric-card" id="card-pod-status">
+          <div class="card-header">
+            <span class="card-label">Kubernetes Pod Status</span>
+            <span class="badge badge-success" id="pod-health-badge">Healthy</span>
+          </div>
+          <div class="metric-value-row">
+            <div class="metric-primary" id="val-pod-name">Loading...</div>
+          </div>
+          <div class="card-footer">
+            <span class="footer-meta">Namespace: <strong id="val-namespace">default</strong></span>
+            <span class="footer-meta">Node: <strong id="val-node-name">aks-nodepool1</strong></span>
+          </div>
+        </article>
+
+        <article class="glass-card metric-card" id="card-runner-status">
+          <div class="card-header">
+            <span class="card-label">GitHub Self-Hosted Runner</span>
+            <span class="badge badge-accent">Terraform VM</span>
+          </div>
+          <div class="metric-value-row">
+            <div class="metric-primary" id="val-runner-ip">10.100.1.10</div>
+          </div>
+          <div class="card-footer">
+            <span class="footer-meta">VNet: <strong>10.100.0.0/16</strong></span>
+            <span class="footer-meta">NAT Egress: <strong>Active</strong></span>
+          </div>
+        </article>
+
+        <article class="glass-card metric-card" id="card-memory-usage">
+          <div class="card-header">
+            <span class="card-label">Memory Utilization</span>
+            <span class="badge badge-info" id="val-memory-pct">--%</span>
+          </div>
+          <div class="metric-value-row">
+            <div class="metric-primary" id="val-heap-used">-- MB</div>
+            <div class="metric-secondary" id="val-heap-total">of -- MB Heap</div>
+          </div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" id="memory-progress-fill" style="width: 25%"></div>
+          </div>
+        </article>
+
+        <article class="glass-card metric-card" id="card-uptime-stat">
+          <div class="card-header">
+            <span class="card-label">Uptime & Requests</span>
+            <span class="badge badge-purple" id="val-requests-count">0 reqs</span>
+          </div>
+          <div class="metric-value-row">
+            <div class="metric-primary" id="val-uptime">0s</div>
+          </div>
+          <div class="card-footer">
+            <span class="footer-meta">Process PID: <strong id="val-pid">--</strong></span>
+            <span class="footer-meta">Node.js: <strong id="val-node-ver">--</strong></span>
+          </div>
+        </article>
+      </section>
+
+      <!-- Architecture Pipeline Showcase -->
+      <section class="glass-card pipeline-section" aria-label="End-to-End Infrastructure Pipeline">
+        <div class="section-title-row">
+          <div>
+            <h2 class="section-title">End-to-End Azure CI/CD Pipeline Architecture</h2>
+            <p class="section-desc">Provisioned by Terraform with zero public IP exposure and Azure Managed Identity RBAC.</p>
+          </div>
+          <span class="badge badge-pill">Continuous Delivery Active</span>
+        </div>
+
+        <div class="pipeline-stepper">
+          <div class="pipeline-step step-complete">
+            <div class="step-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                <line x1="6" y1="18" x2="6.01" y2="18"></line>
+              </svg>
+            </div>
+            <div class="step-content">
+              <span class="step-num">Step 1</span>
+              <h3 class="step-heading">Terraform Infrastructure</h3>
+              <p class="step-detail">Azure Resource Group, Private VNet, Runner Subnet, and NAT Gateway.</p>
+            </div>
+          </div>
+
+          <div class="pipeline-divider"></div>
+
+          <div class="pipeline-step step-complete">
+            <div class="step-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+              </svg>
+            </div>
+            <div class="step-content">
+              <span class="step-num">Step 2</span>
+              <h3 class="step-heading">Self-Hosted Runner VM</h3>
+              <p class="step-detail">Ubuntu 22.04 LTS, Docker CE, Systemd Service, and Managed Identity.</p>
+            </div>
+          </div>
+
+          <div class="pipeline-divider"></div>
+
+          <div class="pipeline-step step-complete">
+            <div class="step-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="16 18 22 12 16 6"></polyline>
+                <polyline points="8 6 2 12 8 18"></polyline>
+              </svg>
+            </div>
+            <div class="step-content">
+              <span class="step-num">Step 3</span>
+              <h3 class="step-heading">CI: Build, Test & ACR Push</h3>
+              <p class="step-detail">Docker multi-stage build, vulnerability scan, push to private ACR.</p>
+            </div>
+          </div>
+
+          <div class="pipeline-divider"></div>
+
+          <div class="pipeline-step step-complete">
+            <div class="step-icon">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                <line x1="12" y1="22.08" x2="12" y2="12"></line>
+              </svg>
+            </div>
+            <div class="step-content">
+              <span class="step-num">Step 4</span>
+              <h3 class="step-heading">CD: Deploy to Private AKS</h3>
+              <p class="step-detail">VNet peering connectivity to private Kubernetes API with rollout check.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Two-Column Section: System Info & Interactive API Tester -->
+      <div class="two-col-layout">
+        <!-- System & Runtime Metadata -->
+        <section class="glass-card" aria-label="Cluster Environment Specs">
+          <div class="section-title-row">
+            <h2 class="section-title">Environment & Cluster Metadata</h2>
+            <span class="badge badge-info">Live Sync</span>
+          </div>
+
+          <div class="specs-table-container">
+            <table class="specs-table" id="metadata-table">
+              <tbody>
+                <tr>
+                  <td>Application Name</td>
+                  <td id="spec-app-name" class="mono-cell">Azure GitHub Runner Demo</td>
+                </tr>
+                <tr>
+                  <td>Cloud Provider</td>
+                  <td id="spec-cloud" class="mono-cell">Microsoft Azure</td>
+                </tr>
+                <tr>
+                  <td>Execution Context</td>
+                  <td id="spec-context" class="mono-cell">Private Azure Kubernetes Service (AKS)</td>
+                </tr>
+                <tr>
+                  <td>Operating Platform</td>
+                  <td id="spec-platform" class="mono-cell">linux-x64</td>
+                </tr>
+                <tr>
+                  <td>Runner Labels</td>
+                  <td class="mono-cell">
+                    <span class="tag">self-hosted</span>
+                    <span class="tag">linux</span>
+                    <span class="tag">azure</span>
+                    <span class="tag">docker</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td>VNet Peering Status</td>
+                  <td class="mono-cell status-text-green">✓ Connected (TCP 443 Allowed)</td>
+                </tr>
+                <tr>
+                  <td>NAT Gateway Association</td>
+                  <td class="mono-cell status-text-green">✓ snet-runner (Standard Public IP)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Interactive API Console -->
+        <section class="glass-card" aria-label="Interactive Kubernetes API Tester">
+          <div class="section-title-row">
+            <h2 class="section-title">Live API Console</h2>
+            <span class="badge badge-accent">REST Endpoints</span>
+          </div>
+          <p class="section-desc">Test the live microservice health and metrics endpoints directly from your browser:</p>
+
+          <div class="api-btn-group">
+            <button class="api-btn active" id="btn-api-health" data-endpoint="/healthz">GET /healthz</button>
+            <button class="api-btn" id="btn-api-ready" data-endpoint="/readyz">GET /readyz</button>
+            <button class="api-btn" id="btn-api-metrics" data-endpoint="/metrics">GET /metrics</button>
+            <button class="api-btn" id="btn-api-info" data-endpoint="/api/info">GET /api/info</button>
+            <button class="api-btn" id="btn-api-echo" data-endpoint="/api/echo" data-method="POST">POST /api/echo</button>
+          </div>
+
+          <div class="console-box">
+            <div class="console-header">
+              <span class="console-dot dot-red"></span>
+              <span class="console-dot dot-yellow"></span>
+              <span class="console-dot dot-green"></span>
+              <span class="console-title" id="console-endpoint-label">GET /healthz</span>
+              <span class="console-status" id="console-status-code">HTTP 200 OK</span>
+            </div>
+            <pre class="console-output" id="console-output">Loading response...</pre>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="page-footer">
+      <div>Azure GitHub Self-Hosted Runner &amp; Private AKS Integration | End-to-End Infrastructure</div>
+      <div class="footer-links">
+        <span>Terraform v1.9+</span>
+        <span class="separator">•</span>
+        <span>Ubuntu 22.04 LTS</span>
+        <span class="separator">•</span>
+        <span>Docker CE</span>
+        <span class="separator">•</span>
+        <span>Kubernetes v1.30</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+# Local dependencies and cache
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+
+# Git and CI/CD
+.git/
+.gitignore
+.github/
+
+# Terraform infrastructure code
+infrastructure/
+.terraform/
+*.tfstate*
+*.tfplan
+
+# Documentation and scratch files
+README.md
+scripts/
+tests/
+coverage/
+
+# OS-generated files
+.DS_Store
+Thumbs.db
