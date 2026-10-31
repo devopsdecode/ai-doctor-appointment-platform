@@ -11,20 +11,77 @@ on:
 
 env:
   AZURE_SUBSCRIPTION_ID: "cd459aae-8e9d-4069-8ab8-fd60d11b3e04"
-  ACR_NAME: "myacrprod"                          # Replace with your ACR name
   IMAGE_NAME: "sample-nodejs-app"
-  AKS_RESOURCE_GROUP: "rg-aks-prod"              # Resource group where private AKS is located
-  AKS_CLUSTER_NAME: "aks-cluster-prod"           # Name of your private AKS cluster
   DEPLOYMENT_NAME: "nodejs-deployment"
   NAMESPACE: "demo-app"
 
 jobs:
   # ============================================================================
-  # Continuous Integration (CI) Job
-  # Executes directly on the self-hosted Azure Runner VM
+  # 1. Infrastructure Provisioning Job (Terraform)
+  # Automatically provisions Azure Resource Group, ACR, and AKS Cluster
+  # ============================================================================
+  terraform:
+    name: Provision AKS Cluster & ACR (Terraform)
+    runs-on: self-hosted
+    outputs:
+      acr_name: ${{ steps.export_outputs.outputs.acr_name }}
+      aks_name: ${{ steps.export_outputs.outputs.aks_name }}
+      rg_name: ${{ steps.export_outputs.outputs.rg_name }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Azure via Managed Identity
+        run: |
+          echo "Authenticating via System-Assigned Managed Identity..."
+          az login --identity --allow-no-subscriptions
+          az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+          echo "Active subscription:"
+          az account show --output table
+
+      - name: Ensure Terraform is Installed
+        run: |
+          if ! command -v terraform >/dev/null 2>&1; then
+            echo "Installing Terraform..."
+            sudo apt-get update && sudo apt-get install -y gnupg software-properties-common wget
+            wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+            echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+            sudo apt-get update && sudo apt-get install -y terraform
+          fi
+          terraform -version
+
+      - name: Terraform Init & Apply
+        working-directory: infrastructure/terraform
+        run: |
+          echo "Initializing Terraform..."
+          terraform init
+          echo "Applying Terraform configuration to provision ACR & AKS..."
+          terraform apply -auto-approve
+
+      - name: Export Infrastructure Outputs
+        id: export_outputs
+        working-directory: infrastructure/terraform
+        run: |
+          ACR=$(terraform output -raw acr_name)
+          AKS=$(terraform output -raw aks_cluster_name)
+          RG=$(terraform output -raw resource_group_name)
+          echo "acr_name=$ACR" >> "$GITHUB_OUTPUT"
+          echo "aks_name=$AKS" >> "$GITHUB_OUTPUT"
+          echo "rg_name=$RG" >> "$GITHUB_OUTPUT"
+          echo "=========================================="
+          echo "Provisioned Infrastructure Details:"
+          echo "Resource Group: $RG"
+          echo "AKS Cluster:    $AKS"
+          echo "ACR Registry:   $ACR"
+          echo "=========================================="
+
+  # ============================================================================
+  # 2. Continuous Integration (CI) Job
+  # Builds, tests, scans, and pushes Docker image to the provisioned ACR
   # ============================================================================
   ci:
     name: Build, Test, Scan & Push to ACR
+    needs: [terraform]
     runs-on: self-hosted
     steps:
       - name: Checkout Code
@@ -44,7 +101,6 @@ jobs:
       - name: Run Unit & Integration Tests
         run: |
           echo "Running application test suite inside containerized Node environment..."
-          # Clean up container-generated node_modules on exit so host workspace permissions remain clean
           trap 'docker run --rm -v "$PWD":/usr/src/app alpine rm -rf /usr/src/app/node_modules' EXIT
           docker run --rm \
             -v "$PWD":/usr/src/app \
@@ -52,6 +108,8 @@ jobs:
             node:20-alpine sh -c "npm ci && npm test"
 
       - name: Build Node.js Docker Image
+        env:
+          ACR_NAME: ${{ needs.terraform.outputs.acr_name }}
         run: |
           IMAGE_TAG="$GITHUB_SHA"
           ACR_REGISTRY="$ACR_NAME.azurecr.io"
@@ -63,6 +121,8 @@ jobs:
           echo "Docker image built successfully!"
 
       - name: Security Vulnerability Scan (Trivy)
+        env:
+          ACR_NAME: ${{ needs.terraform.outputs.acr_name }}
         run: |
           echo "Scanning image for critical vulnerabilities using Trivy container..."
           docker run --rm \
@@ -72,26 +132,21 @@ jobs:
             --exit-code 0 \
             "$ACR_NAME.azurecr.io/$IMAGE_NAME:$GITHUB_SHA" || true
 
-      - name: Authenticate to Azure & Push Image to ACR
+      - name: Push Docker Image to ACR
+        env:
+          ACR_NAME: ${{ needs.terraform.outputs.acr_name }}
         run: |
           echo "Authenticating via System-Assigned Managed Identity..."
-          if az login --identity --allow-no-subscriptions >/dev/null 2>&1; then
-            echo "Managed Identity authenticated. Setting subscription: $AZURE_SUBSCRIPTION_ID..."
-            az account set --subscription "$AZURE_SUBSCRIPTION_ID" 2>/dev/null || true
+          az login --identity --allow-no-subscriptions
+          az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 
-            # Check if ACR exists in subscription before attempting login & push
-            if az acr show --name "$ACR_NAME" --subscription "$AZURE_SUBSCRIPTION_ID" >/dev/null 2>&1; then
-              echo "ACR '$ACR_NAME' found. Logging in and pushing image..."
-              az acr login --name "$ACR_NAME" --subscription "$AZURE_SUBSCRIPTION_ID"
-              docker push "$ACR_NAME.azurecr.io/$IMAGE_NAME:$GITHUB_SHA"
-              docker push "$ACR_NAME.azurecr.io/$IMAGE_NAME:latest"
-              echo "Image successfully published to ACR!"
-            else
-              echo "::warning::ACR '$ACR_NAME' does not exist yet in subscription $AZURE_SUBSCRIPTION_ID. Skipping push until ACR is provisioned."
-            fi
-          else
-            echo "::warning::Azure Managed Identity authentication skipped or not available. Image built locally."
-          fi
+          echo "Logging into provisioned ACR: $ACR_NAME..."
+          az acr login --name "$ACR_NAME" --subscription "$AZURE_SUBSCRIPTION_ID"
+
+          echo "Pushing image to Azure Container Registry..."
+          docker push "$ACR_NAME.azurecr.io/$IMAGE_NAME:$GITHUB_SHA"
+          docker push "$ACR_NAME.azurecr.io/$IMAGE_NAME:latest"
+          echo "Image successfully published to ACR: $ACR_NAME"
 
       - name: Cleanup Workspace Permissions
         if: always()
@@ -100,44 +155,51 @@ jobs:
           docker run --rm -v "$PWD":/usr/src/app alpine rm -rf /usr/src/app/node_modules 2>/dev/null || sudo rm -rf node_modules 2>/dev/null || true
 
   # ============================================================================
-  # Continuous Deployment (CD) Job
-  # Deploys to Kubernetes cluster
+  # 3. Continuous Deployment (CD) Job
+  # Connects to the provisioned AKS cluster and deploys Kubernetes manifests
   # ============================================================================
   cd:
-    name: Deploy to Kubernetes Cluster
-    needs: [ci]
+    name: Deploy to Kubernetes Cluster (AKS)
+    needs: [terraform, ci]
     if: github.ref == 'refs/heads/main'
     runs-on: self-hosted
+    env:
+      ACR_NAME: ${{ needs.terraform.outputs.acr_name }}
+      AKS_CLUSTER_NAME: ${{ needs.terraform.outputs.aks_name }}
+      AKS_RESOURCE_GROUP: ${{ needs.terraform.outputs.rg_name }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Authenticate & Deploy to AKS
         run: |
-          echo "Checking Azure credentials and AKS cluster status..."
-          if az login --identity --allow-no-subscriptions >/dev/null 2>&1; then
-            az account set --subscription "$AZURE_SUBSCRIPTION_ID" 2>/dev/null || true
+          echo "Authenticating to Azure via Managed Identity..."
+          az login --identity --allow-no-subscriptions
+          az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 
-            if az aks show --resource-group "$AKS_RESOURCE_GROUP" --name "$AKS_CLUSTER_NAME" --subscription "$AZURE_SUBSCRIPTION_ID" >/dev/null 2>&1; then
-              echo "Fetching kubeconfig for AKS cluster: $AKS_CLUSTER_NAME..."
-              az aks get-credentials \
-                --subscription "$AZURE_SUBSCRIPTION_ID" \
-                --resource-group "$AKS_RESOURCE_GROUP" \
-                --name "$AKS_CLUSTER_NAME" \
-                --overwrite-existing
+          echo "Fetching kubeconfig for AKS cluster: $AKS_CLUSTER_NAME in $AKS_RESOURCE_GROUP..."
+          az aks get-credentials \
+            --subscription "$AZURE_SUBSCRIPTION_ID" \
+            --resource-group "$AKS_RESOURCE_GROUP" \
+            --name "$AKS_CLUSTER_NAME" \
+            --overwrite-existing
 
-              echo "Applying Kubernetes manifests to cluster..."
-              IMAGE_URI="$ACR_NAME.azurecr.io/$IMAGE_NAME:$GITHUB_SHA"
-              kubectl apply -f k8s/namespace.yaml
-              kubectl apply -f k8s/configmap.yaml
-              sed -i.bak "s|image: .*|image: $IMAGE_URI|g" k8s/deployment.yaml 2>/dev/null || true
-              kubectl apply -f k8s/deployment.yaml
-              kubectl apply -f k8s/service.yaml
-              kubectl apply -f k8s/hpa.yaml
-              echo "Deployment applied successfully!"
-            else
-              echo "::warning::AKS cluster '$AKS_CLUSTER_NAME' not found in '$AKS_RESOURCE_GROUP'. Skipping rollout until cluster is provisioned."
-            fi
-          else
-            echo "::warning::Azure authentication not available. Skipping Kubernetes deployment."
-          fi
+          echo "Testing connectivity to Kubernetes API server..."
+          kubectl cluster-info
+          kubectl get nodes -o wide
+
+          echo "Applying Kubernetes manifests to cluster..."
+          IMAGE_URI="$ACR_NAME.azurecr.io/$IMAGE_NAME:$GITHUB_SHA"
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/configmap.yaml
+          sed -i.bak "s|image: .*|image: $IMAGE_URI|g" k8s/deployment.yaml 2>/dev/null || true
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/service.yaml
+          kubectl apply -f k8s/hpa.yaml
+
+          echo "Verifying deployment rollout status in namespace: $NAMESPACE..."
+          kubectl rollout status deployment/"$DEPLOYMENT_NAME" -n "$NAMESPACE" --timeout=180s
+
+          echo "Deployment succeeded! Current pods and services:"
+          kubectl get pods -n "$NAMESPACE" -l app="$IMAGE_NAME" -o wide
+          kubectl get svc -n "$NAMESPACE"
