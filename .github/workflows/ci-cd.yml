@@ -24,7 +24,7 @@ jobs:
   # ============================================================================
   ci:
     name: Build, Test, Scan & Push to ACR
-    runs-on: [self-hosted, linux, azure, docker]
+    runs-on: self-hosted
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -94,7 +94,7 @@ jobs:
     name: Deploy to Private AKS Cluster
     needs: [ci]
     if: github.ref == 'refs/heads/main'
-    runs-on: [self-hosted, linux, azure, docker]
+    runs-on: self-hosted
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
