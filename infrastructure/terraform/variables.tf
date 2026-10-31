@@ -31,13 +31,13 @@ variable "dns_prefix" {
 variable "node_count" {
   type        = number
   description = "Initial number of worker nodes in the default node pool"
-  default     = 2
+  default     = 1
 }
 
 variable "vm_size" {
   type        = string
   description = "Azure Virtual Machine size for the AKS worker nodes"
-  default     = "Standard_D2s_v5"
+  default     = "Standard_B2s"
 }
 
 variable "os_disk_size_gb" {
