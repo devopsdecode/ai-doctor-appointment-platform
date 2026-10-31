@@ -10,6 +10,7 @@ on:
   workflow_dispatch:
 
 env:
+  AZURE_SUBSCRIPTION_ID: "cd459aae-8e9d-4069-8ab8-fd60d11b3e04"
   ACR_NAME: "myacrprod"                          # Replace with your ACR name
   IMAGE_NAME: "sample-nodejs-app"
   AKS_RESOURCE_GROUP: "rg-aks-prod"              # Resource group where private AKS is located
@@ -54,12 +55,15 @@ jobs:
         run: |
           echo "Authenticating via System-Assigned Managed Identity..."
           az login --identity --allow-no-subscriptions
-          echo "Authentication successful!"
+          echo "Setting active Azure subscription to $AZURE_SUBSCRIPTION_ID..."
+          az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+          echo "Authentication successful! Active subscription:"
+          az account show --output table
 
       - name: Log in to Azure Container Registry (ACR)
         run: |
-          echo "Logging into ACR: $ACR_NAME..."
-          az acr login --name "$ACR_NAME"
+          echo "Logging into ACR: $ACR_NAME (Subscription: $AZURE_SUBSCRIPTION_ID)..."
+          az acr login --name "$ACR_NAME" --subscription "$AZURE_SUBSCRIPTION_ID"
 
       - name: Build Node.js Docker Image
         run: |
@@ -110,11 +114,13 @@ jobs:
       - name: Authenticate to Azure using VM Managed Identity
         run: |
           az login --identity --allow-no-subscriptions
+          az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 
       - name: Get Private AKS Cluster Credentials
         run: |
-          echo "Fetching kubeconfig for private AKS cluster: $AKS_CLUSTER_NAME..."
+          echo "Fetching kubeconfig for private AKS cluster: $AKS_CLUSTER_NAME (Subscription: $AZURE_SUBSCRIPTION_ID)..."
           az aks get-credentials \
+            --subscription "$AZURE_SUBSCRIPTION_ID" \
             --resource-group "$AKS_RESOURCE_GROUP" \
             --name "$AKS_CLUSTER_NAME" \
             --overwrite-existing
