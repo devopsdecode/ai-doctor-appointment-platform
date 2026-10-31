@@ -88,6 +88,12 @@ jobs:
           docker push "$ACR_NAME.azurecr.io/$IMAGE_NAME:latest"
           echo "Image successfully published to ACR!"
 
+      - name: Cleanup Workspace Permissions
+        if: always()
+        run: |
+          echo "Ensuring all container-generated files are removed from workspace..."
+          docker run --rm -v "$PWD":/usr/src/app alpine rm -rf /usr/src/app/node_modules 2>/dev/null || sudo rm -rf node_modules 2>/dev/null || true
+
   # ============================================================================
   # Continuous Deployment (CD) Job
   # Deploys to Private AKS cluster through peered VNet / Private DNS
