@@ -101,4 +101,65 @@ describe('Azure Microservice & Telemetry API Test Suite', () => {
     assert.ok(text.includes('Cloud-Native Telemetry Dashboard'));
     assert.ok(text.includes('Azure Infrastructure & CI/CD'));
   });
+
+  test('GET /api/doctors returns doctor directory', async () => {
+    const res = await fetch(`${baseUrl}/api/doctors`);
+    assert.strictEqual(res.status, 200);
+    const body = await res.json();
+    assert.strictEqual(body.success, true);
+    assert.ok(Array.isArray(body.doctors));
+    assert.ok(body.doctors.length >= 4);
+    assert.ok(body.doctors[0].department);
+    assert.ok(body.doctors[0].slots.length > 0);
+  });
+
+  test('POST /api/ai/diagnose generates intelligent clinical triage', async () => {
+    const res = await fetch(`${baseUrl}/api/ai/diagnose`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        symptoms: 'Throbbing headache on left side with light sensitivity and nausea',
+        duration: '2 days',
+        severity: 'Moderate'
+      })
+    });
+
+    assert.strictEqual(res.status, 200);
+    const body = await res.json();
+    assert.strictEqual(body.success, true);
+    assert.strictEqual(body.recommendedDepartment, 'Neurology');
+    assert.ok(body.potentialConditions.length > 0);
+    assert.ok(body.suggestedQuestions.length > 0);
+    assert.ok(body.matchedDoctors.length > 0);
+  });
+
+  test('POST and GET /api/appointments creates and lists appointments', async () => {
+    const apptPayload = {
+      doctorId: 'doc-1',
+      patientName: 'Jane Doe',
+      patientEmail: 'jane.doe@example.com',
+      date: '2026-11-15',
+      time: '11:00 AM',
+      mode: 'video',
+      reason: 'Routine cardiovascular checkup'
+    };
+
+    const postRes = await fetch(`${baseUrl}/api/appointments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(apptPayload)
+    });
+
+    assert.strictEqual(postRes.status, 201);
+    const postBody = await postRes.json();
+    assert.strictEqual(postBody.success, true);
+    assert.ok(postBody.appointment.id.startsWith('APT-AZ-'));
+    assert.strictEqual(postBody.appointment.doctorName, 'Dr. Elena Rostova');
+
+    const getRes = await fetch(`${baseUrl}/api/appointments?email=jane.doe@example.com`);
+    assert.strictEqual(getRes.status, 200);
+    const getBody = await getRes.json();
+    assert.strictEqual(getBody.success, true);
+    assert.ok(getBody.appointments.some((a) => a.id === postBody.appointment.id));
+  });
 });

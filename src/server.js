@@ -5,7 +5,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 const server = app.listen(PORT, HOST, () => {
   console.log('================================================================');
-  console.log(`🚀 Azure Demo Service started on http://${HOST}:${PORT}`);
+  console.log(`🩺 PulseAI Doctor Appointment Platform started on http://${HOST}:${PORT}`);
   console.log(`📡 Environment: ${process.env.NODE_ENV || 'production'}`);
   console.log(`🏥 Health check: http://${HOST}:${PORT}/healthz`);
   console.log(`📊 Metrics:      http://${HOST}:${PORT}/metrics`);
